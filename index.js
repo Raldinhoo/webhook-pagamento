@@ -8,7 +8,7 @@ const PUSHOVER_USER_KEY = process.env.PUSHOVER_USER_KEY;
 const PUSHOVER_TOKEN_SETUP = process.env.PUSHOVER_TOKEN_SETUP;
 const PUSHOVER_TOKEN_DRONE = process.env.PUSHOVER_TOKEN_DRONE;
 
-// 👇 ADICIONA ESSA FUNÇÃO AQUI
+// Define o token de notificação com base no nome do produto
 const getTokenByProduto = (titulo) => {
   if (titulo?.toLowerCase().includes('setup')) return PUSHOVER_TOKEN_SETUP;
   if (titulo?.toLowerCase().includes('drone')) return PUSHOVER_TOKEN_DRONE;
@@ -25,20 +25,24 @@ app.post('/webhook', async (req, res) => {
     const produto = data?.product?.title ?? '';
     const horario = new Date(timestamp).toLocaleString('pt-BR');
 
-    const utmSource = data?.params?.utmSource ?? 'origem desconhecida';
-    const utmMedium = data?.params?.utmMedium ?? 'mídia desconhecida';
-    const origem = `${utmSource} / ${utmMedium}`;
+    const utmSource = data?.params?.utmSource?.trim() || 'origem-desconhecida';
+    const utmContent = data?.params?.utmContent?.trim() || 'conteúdo-desconhecido';
+    const origem = `${utmSource} / ${utmContent}`;
 
-    const valorFormatado = valor
-      ? `R$${(valor).toFixed(2).replace('.', ',')}`
-      : 'Valor não informado';
+    const valorFormatado = `R$${valor.toFixed(2).replace('.', ',')}`;
 
     const mensagem = `💰 Novo pagamento no valor de ${valorFormatado} via ${origem}
 👤 Nome: ${nome}
 📞 Telefone: ${telefone}
 🕒 Horário: ${horario}`;
 
-    const token = getTokenByProduto(produto); // sua função já existente pra separar apps
+    const token = getTokenByProduto(produto);
+
+    const titulo = produto?.toLowerCase().includes('setup')
+      ? 'Pagamento Recebido 🕹️✅'
+      : produto?.toLowerCase().includes('drone')
+      ? 'Pagamento Recebido 🚁✅'
+      : 'Pagamento Recebido ✅';
 
     if (!token) {
       console.log('❌ Produto não identificado. Notificação não enviada.');
@@ -50,7 +54,7 @@ app.post('/webhook', async (req, res) => {
         token,
         user: PUSHOVER_USER_KEY,
         message: mensagem,
-        title: `Pagamento | ${produto}`,
+        title: titulo,
         priority: 1
       });
 
@@ -65,8 +69,6 @@ app.post('/webhook', async (req, res) => {
   }
 });
 
-  
-
 app.listen(3000, () => {
-  console.log('🚀 Servidor rodando: http://localhost:3000/webhook');
+  console.log('🚀 Servidor rodando na porta 3000');
 });
