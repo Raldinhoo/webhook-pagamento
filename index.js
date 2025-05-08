@@ -5,7 +5,15 @@ const app = express();
 app.use(express.json());
 
 const PUSHOVER_USER_KEY = process.env.PUSHOVER_USER_KEY;
-const PUSHOVER_API_TOKEN = process.env.PUSHOVER_API_TOKEN;
+const PUSHOVER_TOKEN_SETUP = process.env.PUSHOVER_TOKEN_SETUP;
+const PUSHOVER_TOKEN_DRONE = process.env.PUSHOVER_TOKEN_DRONE;
+
+// 👇 ADICIONA ESSA FUNÇÃO AQUI
+const getTokenByProduto = (titulo) => {
+  if (titulo?.toLowerCase().includes('setup')) return PUSHOVER_TOKEN_SETUP;
+  if (titulo?.toLowerCase().includes('drone')) return PUSHOVER_TOKEN_DRONE;
+  return null;
+};
 
 app.post('/webhook', async (req, res) => {
   const { event, timestamp, data } = req.body;
