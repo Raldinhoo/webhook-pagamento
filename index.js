@@ -25,26 +25,41 @@ app.post('/webhook', async (req, res) => {
     const produto = data?.product?.title ?? '';
     const horario = new Date(timestamp).toLocaleString('pt-BR');
 
-    // Limpa utmSource (ex: de "campaign?utm_medium=paid" → "campaign")
     const utmSourceRaw = data?.params?.utmSource ?? 'origem-desconhecida';
     const utmSource = utmSourceRaw.split('?')[0].trim();
     const utmContent = data?.params?.utmContent?.trim() || 'conteúdo-desconhecido';
     const origem = `${utmSource} / ${utmContent}`;
-
     const valorFormatado = `R$${valor.toFixed(2).replace('.', ',')}`;
 
-    const mensagem = `💰 Novo pagamento no valor de ${valorFormatado} via ${origem}
-👤 Nome: ${nome}
+    let titulo = '';
+    let mensagem = '';
+
+    const mensagemBase = `👤 Nome: ${nome}
 📞 Telefone: ${telefone}
-🕒 Horário: ${horario}`;
+🕒 Horário: ${horario}
+📦 Produto: ${produto}
+🌍 Origem: ${origem}`;
+
+    if (valor >= 200) {
+      titulo = '💣 EXPLOSÃO DE VENDA 💥🚀';
+      mensagem = `🔥 Pagamento insano de ${valorFormatado} via ${origem}\n\n${mensagemBase}`;
+    } else if (valor >= 100) {
+      titulo = '🧨 VENDA MONSTRA 🔥✅';
+      mensagem = `💰 Pagamento poderoso de ${valorFormatado} via ${origem}\n\n${mensagemBase}`;
+    } else if (valor >= 50) {
+      titulo = '💸 Boa venda realizada ✅';
+      mensagem = `💰 Novo pagamento de ${valorFormatado} via ${origem}\n\n${mensagemBase}`;
+    } else {
+      titulo = produto?.toLowerCase().includes('setup')
+        ? 'Pagamento Recebido 🕹️✅'
+        : produto?.toLowerCase().includes('drone')
+        ? 'Pagamento Recebido 🚁✅'
+        : 'Pagamento Recebido ✅';
+
+      mensagem = `💰 Novo pagamento no valor de ${valorFormatado} via ${origem}\n\n${mensagemBase}`;
+    }
 
     const token = getTokenByProduto(produto);
-
-    const titulo = produto?.toLowerCase().includes('setup')
-      ? 'Pagamento Recebido 🕹️✅'
-      : produto?.toLowerCase().includes('drone')
-      ? 'Pagamento Recebido 🚁✅'
-      : 'Pagamento Recebido ✅';
 
     if (!token) {
       console.log('❌ Produto não identificado. Notificação não enviada.');
