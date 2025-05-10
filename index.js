@@ -8,7 +8,6 @@ const PUSHOVER_USER_KEY = process.env.PUSHOVER_USER_KEY;
 const PUSHOVER_TOKEN_SETUP = process.env.PUSHOVER_TOKEN_SETUP;
 const PUSHOVER_TOKEN_DRONE = process.env.PUSHOVER_TOKEN_DRONE;
 
-// Escolhe o token de acordo com o nome do produto
 const getTokenByProduto = (titulo) => {
   if (titulo?.toLowerCase().includes('setup')) return PUSHOVER_TOKEN_SETUP;
   if (titulo?.toLowerCase().includes('drone')) return PUSHOVER_TOKEN_DRONE;
@@ -26,9 +25,12 @@ app.post('/webhook', async (req, res) => {
     const horario = new Date(timestamp).toLocaleString('pt-BR');
 
     const utmSourceRaw = data?.params?.utmSource ?? 'origem-desconhecida';
+    const utmContentRaw = data?.params?.utmContent ?? '';
     const utmSource = utmSourceRaw.split('?')[0].trim();
-    const utmContent = data?.params?.utmContent?.trim() || 'conteúdo-desconhecido';
-    const origem = `${utmSource} / ${utmContent}`;
+    const utmContent = utmContentRaw.trim();
+
+    const isNumeric = /^\d+$/.test(utmContent);
+    const origem = isNumeric ? utmSource : `${utmSource} / ${utmContent}`;
     const valorFormatado = `R$${valor.toFixed(2).replace('.', ',')}`;
 
     let titulo = '';
