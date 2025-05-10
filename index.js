@@ -1,16 +1,42 @@
 const express = require('express');
 const axios = require('axios');
-const app = express();
+const fs = require('fs');
+const path = require('path');
 
+const app = express();
 app.use(express.json());
 
 const PUSHOVER_USER_KEY = process.env.PUSHOVER_USER_KEY;
 const PUSHOVER_TOKEN_SETUP = process.env.PUSHOVER_TOKEN_SETUP;
 const PUSHOVER_TOKEN_DRONE = process.env.PUSHOVER_TOKEN_DRONE;
 
-let totalSetup = 0;
-let totalDrone = 0;
-let dataAtual = new Date().toLocaleDateString('pt-BR');
+const filePath = path.join(__dirname, 'totais.json');
+
+// Lê ou inicia o arquivo de totais
+const lerTotais = () => {
+  try {
+    if (!fs.existsSync(filePath)) {
+      fs.writeFileSync(filePath, JSON.stringify({
+        data: new Date().toLocaleDateString('pt-BR'),
+        setup: 0,
+        drone: 0
+      }, null, 2));
+    }
+    const raw = fs.readFileSync(filePath);
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error('Erro ao ler totais:', err.message);
+    return { data: '', setup: 0, drone: 0 };
+  }
+};
+
+const salvarTotais = (totais) => {
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(totais, null, 2));
+  } catch (err) {
+    console.error('Erro ao salvar totais:', err.message);
+  }
+};
 
 const getTokenByProduto = (titulo) => {
   if (titulo?.toLowerCase().includes('setup')) return PUSHOVER_TOKEN_SETUP;
@@ -28,13 +54,6 @@ app.post('/webhook', async (req, res) => {
   const { event, timestamp, data } = req.body;
 
   if (event === 'order.paid') {
-    const hoje = new Date().toLocaleDateString('pt-BR');
-    if (hoje !== dataAtual) {
-      totalSetup = 0;
-      totalDrone = 0;
-      dataAtual = hoje;
-    }
-
     const nome = data?.user?.name ?? 'Sem nome';
     const telefone = data?.user?.phone ?? 'Sem telefone';
     const valor = data?.total ?? 0;
@@ -59,8 +78,20 @@ app.post('/webhook', async (req, res) => {
     const valorFormatado = `R$${valor.toFixed(2).replace('.', ',')}`;
     const tipoProduto = getTipoProduto(produto);
 
-    if (tipoProduto === 'setup') totalSetup += valor;
-    if (tipoProduto === 'drone') totalDrone += valor;
+    // Lê os totais atuais
+    const totais = lerTotais();
+    const hoje = new Date().toLocaleDateString('pt-BR');
+
+    if (totais.data !== hoje) {
+      totais.data = hoje;
+      totais.setup = 0;
+      totais.drone = 0;
+    }
+
+    if (tipoProduto === 'setup') totais.setup += valor;
+    if (tipoProduto === 'drone') totais.drone += valor;
+
+    salvarTotais(totais);
 
     const mensagemBase = `👤 Nome: ${nome}
 📞 Telefone: ${telefone}
@@ -88,14 +119,13 @@ app.post('/webhook', async (req, res) => {
       mensagem = `💰 Novo pagamento no valor de ${valorFormatado} via ${origem}\n\n${mensagemBase}`;
     }
 
+    // Total final
     if (tipoProduto === 'setup') {
-      const totalFormatado = `R$${totalSetup.toFixed(2).replace('.', ',')}`;
-      mensagem += `\n\n📊 Total SETUP hoje: ${totalFormatado}`;
+      mensagem += `\n\n📊 Total SETUP hoje: R$${totais.setup.toFixed(2).replace('.', ',')}`;
     }
 
     if (tipoProduto === 'drone') {
-      const totalFormatado = `R$${totalDrone.toFixed(2).replace('.', ',')}`;
-      mensagem += `\n\n📊 Total DRONE hoje: ${totalFormatado}`;
+      mensagem += `\n\n📊 Total DRONE hoje: R$${totais.drone.toFixed(2).replace('.', ',')}`;
     }
 
     const token = getTokenByProduto(produto);
