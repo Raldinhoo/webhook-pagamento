@@ -8,19 +8,16 @@ const PUSHOVER_USER_KEY = process.env.PUSHOVER_USER_KEY;
 const PUSHOVER_TOKEN_SETUP = process.env.PUSHOVER_TOKEN_SETUP;
 const PUSHOVER_TOKEN_DRONE = process.env.PUSHOVER_TOKEN_DRONE;
 
-// Contadores em memória
 let totalSetup = 0;
 let totalDrone = 0;
 let dataAtual = new Date().toLocaleDateString('pt-BR');
 
-// Define qual token usar baseado no produto
 const getTokenByProduto = (titulo) => {
   if (titulo?.toLowerCase().includes('setup')) return PUSHOVER_TOKEN_SETUP;
   if (titulo?.toLowerCase().includes('drone')) return PUSHOVER_TOKEN_DRONE;
   return null;
 };
 
-// Identifica se é setup ou drone
 const getTipoProduto = (titulo) => {
   if (titulo?.toLowerCase().includes('setup')) return 'setup';
   if (titulo?.toLowerCase().includes('drone')) return 'drone';
@@ -31,7 +28,6 @@ app.post('/webhook', async (req, res) => {
   const { event, timestamp, data } = req.body;
 
   if (event === 'order.paid') {
-    // Reset diário
     const hoje = new Date().toLocaleDateString('pt-BR');
     if (hoje !== dataAtual) {
       totalSetup = 0;
@@ -63,15 +59,12 @@ app.post('/webhook', async (req, res) => {
     const valorFormatado = `R$${valor.toFixed(2).replace('.', ',')}`;
     const tipoProduto = getTipoProduto(produto);
 
-    // Soma ao contador correspondente
     if (tipoProduto === 'setup') totalSetup += valor;
     if (tipoProduto === 'drone') totalDrone += valor;
 
-    // Monta mensagem base
     const mensagemBase = `👤 Nome: ${nome}
 📞 Telefone: ${telefone}
-🕒 Horário: ${horario}
-📦 Produto: ${produto}`;
+🕒 Horário: ${horario}`;
 
     let titulo = '';
     let mensagem = '';
@@ -95,7 +88,6 @@ app.post('/webhook', async (req, res) => {
       mensagem = `💰 Novo pagamento no valor de ${valorFormatado} via ${origem}\n\n${mensagemBase}`;
     }
 
-    // Adiciona total acumulado no final
     if (tipoProduto === 'setup') {
       const totalFormatado = `R$${totalSetup.toFixed(2).replace('.', ',')}`;
       mensagem += `\n\n📊 Total SETUP hoje: ${totalFormatado}`;
