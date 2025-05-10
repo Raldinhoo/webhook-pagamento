@@ -8,39 +8,73 @@ const PUSHOVER_USER_KEY = process.env.PUSHOVER_USER_KEY;
 const PUSHOVER_TOKEN_SETUP = process.env.PUSHOVER_TOKEN_SETUP;
 const PUSHOVER_TOKEN_DRONE = process.env.PUSHOVER_TOKEN_DRONE;
 
+// Contadores em memória
+let totalSetup = 0;
+let totalDrone = 0;
+let dataAtual = new Date().toLocaleDateString('pt-BR');
+
+// Define qual token usar baseado no produto
 const getTokenByProduto = (titulo) => {
   if (titulo?.toLowerCase().includes('setup')) return PUSHOVER_TOKEN_SETUP;
   if (titulo?.toLowerCase().includes('drone')) return PUSHOVER_TOKEN_DRONE;
   return null;
 };
 
+// Identifica se é setup ou drone
+const getTipoProduto = (titulo) => {
+  if (titulo?.toLowerCase().includes('setup')) return 'setup';
+  if (titulo?.toLowerCase().includes('drone')) return 'drone';
+  return 'outro';
+};
+
 app.post('/webhook', async (req, res) => {
   const { event, timestamp, data } = req.body;
 
   if (event === 'order.paid') {
+    // Reset diário
+    const hoje = new Date().toLocaleDateString('pt-BR');
+    if (hoje !== dataAtual) {
+      totalSetup = 0;
+      totalDrone = 0;
+      dataAtual = hoje;
+    }
+
     const nome = data?.user?.name ?? 'Sem nome';
     const telefone = data?.user?.phone ?? 'Sem telefone';
     const valor = data?.total ?? 0;
     const produto = data?.product?.title ?? '';
     const horario = new Date(timestamp).toLocaleString('pt-BR');
 
-    const utmSourceRaw = data?.params?.utmSource ?? 'origem-desconhecida';
+    const utmSourceRaw = data?.params?.utmSource ?? '';
     const utmContentRaw = data?.params?.utmContent ?? '';
     const utmSource = utmSourceRaw.split('?')[0].trim();
     const utmContent = utmContentRaw.trim();
-
     const isNumeric = /^\d+$/.test(utmContent);
-    const origem = isNumeric ? utmSource : `${utmSource} / ${utmContent}`;
+
+    let origem = '';
+    if (utmSource && utmContent) {
+      origem = isNumeric ? utmSource : `${utmSource} / ${utmContent}`;
+    } else if (utmSource) {
+      origem = utmSource;
+    } else {
+      origem = 'origem-desconhecida';
+    }
+
     const valorFormatado = `R$${valor.toFixed(2).replace('.', ',')}`;
+    const tipoProduto = getTipoProduto(produto);
 
-    let titulo = '';
-    let mensagem = '';
+    // Soma ao contador correspondente
+    if (tipoProduto === 'setup') totalSetup += valor;
+    if (tipoProduto === 'drone') totalDrone += valor;
 
+    // Monta mensagem base
     const mensagemBase = `👤 Nome: ${nome}
 📞 Telefone: ${telefone}
 🕒 Horário: ${horario}
-📦 Produto: ${produto}
-🌍 Origem: ${origem}`;
+📦 Produto: ${produto}`;
+
+    let titulo = '';
+    let mensagem = '';
 
     if (valor >= 200) {
       titulo = '💣 EXPLOSÃO DE VENDA 💥🚀';
@@ -52,13 +86,24 @@ app.post('/webhook', async (req, res) => {
       titulo = '💸 Boa venda realizada ✅';
       mensagem = `💰 Novo pagamento de ${valorFormatado} via ${origem}\n\n${mensagemBase}`;
     } else {
-      titulo = produto?.toLowerCase().includes('setup')
+      titulo = tipoProduto === 'setup'
         ? 'Pagamento Recebido 🕹️✅'
-        : produto?.toLowerCase().includes('drone')
+        : tipoProduto === 'drone'
         ? 'Pagamento Recebido 🚁✅'
         : 'Pagamento Recebido ✅';
 
       mensagem = `💰 Novo pagamento no valor de ${valorFormatado} via ${origem}\n\n${mensagemBase}`;
+    }
+
+    // Adiciona total acumulado no final
+    if (tipoProduto === 'setup') {
+      const totalFormatado = `R$${totalSetup.toFixed(2).replace('.', ',')}`;
+      mensagem += `\n\n📊 Total SETUP hoje: ${totalFormatado}`;
+    }
+
+    if (tipoProduto === 'drone') {
+      const totalFormatado = `R$${totalDrone.toFixed(2).replace('.', ',')}`;
+      mensagem += `\n\n📊 Total DRONE hoje: ${totalFormatado}`;
     }
 
     const token = getTokenByProduto(produto);
