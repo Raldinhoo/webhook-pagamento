@@ -1,7 +1,6 @@
 const express = require('express');
 const axios = require('axios');
 const app = express();
-const fs = require('fs');
 
 app.use(express.json());
 
@@ -9,7 +8,6 @@ const PUSHOVER_USER_KEY = process.env.PUSHOVER_USER_KEY;
 const PUSHOVER_TOKEN_SETUP = process.env.PUSHOVER_TOKEN_SETUP;
 const PUSHOVER_TOKEN_DRONE = process.env.PUSHOVER_TOKEN_DRONE;
 
-// Define o token com base no nome do produto
 const getTokenByProduto = (titulo) => {
   if (titulo?.toLowerCase().includes('setup')) return PUSHOVER_TOKEN_SETUP;
   if (titulo?.toLowerCase().includes('drone')) return PUSHOVER_TOKEN_DRONE;
@@ -28,10 +26,9 @@ app.post('/webhook', async (req, res) => {
 
     const valorFormatado = `R$${valor.toFixed(2).replace('.', ',')}`;
 
-    // Define origem se houver
     const utmSource = data?.params?.utmSource?.split('?')[0]?.trim() || '';
     const utmContent = data?.params?.utmContent?.trim() || '';
-    const origem = utmSource && utmContent ? `${utmSource} / ${utmContent}` : '';
+    const origem = utmSource && utmContent ? `${utmSource} / ${utmContent}` : 'origem-desconhecida';
 
     const token = getTokenByProduto(produto);
 
@@ -46,9 +43,9 @@ app.post('/webhook', async (req, res) => {
       return res.send({ status: 'ignorado', motivo: 'token não encontrado' });
     }
 
-    const mensagem = `💰Novo pagamento no valor de ${valorFormatado}
-🌍 Origem: ${origem}
+    const mensagem = `💰Novo pagamento no valor de ${valorFormatado} 
 
+🌍 Origem: ${origem}
 👤 Nome: ${nome}
 📞 Telefone: ${telefone}
 🕒 Horário: ${horario}
@@ -60,7 +57,7 @@ app.post('/webhook', async (req, res) => {
         user: PUSHOVER_USER_KEY,
         message: mensagem,
         title: titulo,
-        priority: 1,
+        priority: 1
       });
 
       console.log('✅ Notificação enviada!');
