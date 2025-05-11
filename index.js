@@ -1,53 +1,19 @@
 const express = require('express');
 const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
-
 const app = express();
+const fs = require('fs');
+
 app.use(express.json());
 
 const PUSHOVER_USER_KEY = process.env.PUSHOVER_USER_KEY;
 const PUSHOVER_TOKEN_SETUP = process.env.PUSHOVER_TOKEN_SETUP;
 const PUSHOVER_TOKEN_DRONE = process.env.PUSHOVER_TOKEN_DRONE;
 
-const filePath = path.join(__dirname, 'totais.json');
-
-// Lê ou inicia o arquivo de totais
-const lerTotais = () => {
-  try {
-    if (!fs.existsSync(filePath)) {
-      fs.writeFileSync(filePath, JSON.stringify({
-        data: new Date().toLocaleDateString('pt-BR'),
-        setup: 0,
-        drone: 0
-      }, null, 2));
-    }
-    const raw = fs.readFileSync(filePath);
-    return JSON.parse(raw);
-  } catch (err) {
-    console.error('Erro ao ler totais:', err.message);
-    return { data: '', setup: 0, drone: 0 };
-  }
-};
-
-const salvarTotais = (totais) => {
-  try {
-    fs.writeFileSync(filePath, JSON.stringify(totais, null, 2));
-  } catch (err) {
-    console.error('Erro ao salvar totais:', err.message);
-  }
-};
-
+// Define o token com base no nome do produto
 const getTokenByProduto = (titulo) => {
   if (titulo?.toLowerCase().includes('setup')) return PUSHOVER_TOKEN_SETUP;
   if (titulo?.toLowerCase().includes('drone')) return PUSHOVER_TOKEN_DRONE;
   return null;
-};
-
-const getTipoProduto = (titulo) => {
-  if (titulo?.toLowerCase().includes('setup')) return 'setup';
-  if (titulo?.toLowerCase().includes('drone')) return 'drone';
-  return 'outro';
 };
 
 app.post('/webhook', async (req, res) => {
@@ -57,83 +23,36 @@ app.post('/webhook', async (req, res) => {
     const nome = data?.user?.name ?? 'Sem nome';
     const telefone = data?.user?.phone ?? 'Sem telefone';
     const valor = data?.total ?? 0;
-    const produto = data?.product?.title ?? '';
+    const produto = data?.product?.title ?? 'Sem produto';
     const horario = new Date(timestamp).toLocaleString('pt-BR');
 
-    const utmSourceRaw = data?.params?.utmSource ?? '';
-    const utmContentRaw = data?.params?.utmContent ?? '';
-    const utmSource = utmSourceRaw.split('?')[0].trim();
-    const utmContent = utmContentRaw.trim();
-    const isNumeric = /^\d+$/.test(utmContent);
-
-    let origem = '';
-    if (utmSource && utmContent) {
-      origem = isNumeric ? utmSource : `${utmSource} / ${utmContent}`;
-    } else if (utmSource) {
-      origem = utmSource;
-    } else {
-      origem = 'origem-desconhecida';
-    }
-
     const valorFormatado = `R$${valor.toFixed(2).replace('.', ',')}`;
-    const tipoProduto = getTipoProduto(produto);
 
-    // Lê os totais atuais
-    const totais = lerTotais();
-    const hoje = new Date().toLocaleDateString('pt-BR');
-
-    if (totais.data !== hoje) {
-      totais.data = hoje;
-      totais.setup = 0;
-      totais.drone = 0;
-    }
-
-    if (tipoProduto === 'setup') totais.setup += valor;
-    if (tipoProduto === 'drone') totais.drone += valor;
-
-    salvarTotais(totais);
-
-    const mensagemBase = `👤 Nome: ${nome}
-📞 Telefone: ${telefone}
-🕒 Horário: ${horario}`;
-
-    let titulo = '';
-    let mensagem = '';
-
-    if (valor >= 200) {
-      titulo = '💣 EXPLOSÃO DE VENDA 💥🚀';
-      mensagem = `🔥 Pagamento insano de ${valorFormatado} via ${origem}\n\n${mensagemBase}`;
-    } else if (valor >= 100) {
-      titulo = '🧨 VENDA MONSTRA 🔥✅';
-      mensagem = `💰 Pagamento poderoso de ${valorFormatado} via ${origem}\n\n${mensagemBase}`;
-    } else if (valor >= 50) {
-      titulo = '💸 Boa venda realizada ✅';
-      mensagem = `💰 Novo pagamento de ${valorFormatado} via ${origem}\n\n${mensagemBase}`;
-    } else {
-      titulo = tipoProduto === 'setup'
-        ? 'Pagamento Recebido 🕹️✅'
-        : tipoProduto === 'drone'
-        ? 'Pagamento Recebido 🚁✅'
-        : 'Pagamento Recebido ✅';
-
-      mensagem = `💰 Novo pagamento no valor de ${valorFormatado} via ${origem}\n\n${mensagemBase}`;
-    }
-
-    // Total final
-    if (tipoProduto === 'setup') {
-      mensagem += `\n\n📊 Total SETUP hoje: R$${totais.setup.toFixed(2).replace('.', ',')}`;
-    }
-
-    if (tipoProduto === 'drone') {
-      mensagem += `\n\n📊 Total DRONE hoje: R$${totais.drone.toFixed(2).replace('.', ',')}`;
-    }
+    // Define origem se houver
+    const utmSource = data?.params?.utmSource?.split('?')[0]?.trim() || '';
+    const utmContent = data?.params?.utmContent?.trim() || '';
+    const origem = utmSource && utmContent ? `${utmSource} / ${utmContent}` : '';
 
     const token = getTokenByProduto(produto);
+
+    const titulo = produto?.toLowerCase().includes('setup')
+      ? 'Pagamento Recebido 🕹️✅'
+      : produto?.toLowerCase().includes('drone')
+      ? 'Pagamento Recebido 🚁✅'
+      : 'Pagamento Recebido ✅';
 
     if (!token) {
       console.log('❌ Produto não identificado. Notificação não enviada.');
       return res.send({ status: 'ignorado', motivo: 'token não encontrado' });
     }
+
+    const mensagem = `💰Novo pagamento no valor de ${valorFormatado}
+🌍 Origem: ${origem}
+
+👤 Nome: ${nome}
+📞 Telefone: ${telefone}
+🕒 Horário: ${horario}
+📦 Produto: ${produto}`;
 
     try {
       await axios.post('https://api.pushover.net/1/messages.json', {
@@ -141,13 +60,13 @@ app.post('/webhook', async (req, res) => {
         user: PUSHOVER_USER_KEY,
         message: mensagem,
         title: titulo,
-        priority: 1
+        priority: 1,
       });
 
       console.log('✅ Notificação enviada!');
       res.send({ status: 'ok' });
     } catch (err) {
-      console.error('❌ Erro no Pushover:', err.message);
+      console.error('❌ Erro ao enviar para o Pushover:', err.message);
       res.status(500).send({ erro: err.message });
     }
   } else {
