@@ -28,7 +28,10 @@ app.post('/webhook', async (req, res) => {
 
     const utmSource = data?.params?.utmSource?.split('?')[0]?.trim() || '';
     const utmContent = data?.params?.utmContent?.trim() || '';
-    const origem = utmSource && utmContent ? `${utmSource} / ${utmContent}` : 'origem-desconhecida';
+    const isNumeric = /^\d+$/.test(utmContent);
+    const origem = isNumeric || !utmContent
+      ? utmSource || 'origem-desconhecida'
+      : `${utmSource} / ${utmContent}`;
 
     const token = getTokenByProduto(produto);
 
@@ -43,7 +46,7 @@ app.post('/webhook', async (req, res) => {
       return res.send({ status: 'ignorado', motivo: 'token não encontrado' });
     }
 
-    const mensagem = `💰Novo pagamento no valor de ${valorFormatado} 
+    const mensagem = `💰 Novo pagamento de ${valorFormatado}
 
 🌍 Origem: ${origem}
 👤 Nome: ${nome}
