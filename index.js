@@ -6,12 +6,15 @@ app.use(express.json());
 
 const PUSHOVER_USER_KEY = process.env.PUSHOVER_USER_KEY;
 const PUSHOVER_TOKEN_SETUP = process.env.PUSHOVER_TOKEN_SETUP;
+const PUSHOVER_TOKEN_DRONE = process.env.PUSHOVER_TOKEN_DRONE;
 const PUSHOVER_TOKEN_FILMS = process.env.PUSHOVER_TOKEN_FILMS;
 
 // Escolhe o token de acordo com o nome do produto
 const getTokenByProduto = (titulo) => {
-  if (titulo?.toLowerCase().includes('setup')) return PUSHOVER_TOKEN_SETUP;
-  if (titulo?.toLowerCase().includes('heinrich films')) return PUSHOVER_TOKEN_FILMS;
+  const t = titulo?.toLowerCase() || '';
+  if (t.includes('setup')) return PUSHOVER_TOKEN_SETUP;
+  if (t.includes('drone')) return PUSHOVER_TOKEN_DRONE;
+  if (t.includes('heinrich films')) return PUSHOVER_TOKEN_FILMS;
   return null;
 };
 
@@ -50,9 +53,12 @@ app.post('/webhook', async (req, res) => {
       titulo = '💸 Boa venda realizada ✅';
       mensagem = `💰 Novo pagamento de ${valorFormatado} via ${origem}\n\n${mensagemBase}`;
     } else {
-      titulo = produto?.toLowerCase().includes('setup')
+      const t = produto?.toLowerCase() || '';
+      titulo = t.includes('setup')
         ? 'Pagamento Recebido 🕹️✅'
-        : produto?.toLowerCase().includes('heinrich films')
+        : t.includes('drone')
+        ? 'Pagamento Recebido 🚁✅'
+        : t.includes('heinrich films')
         ? 'Pagamento Recebido 🎬✅'
         : 'Pagamento Recebido ✅';
 
